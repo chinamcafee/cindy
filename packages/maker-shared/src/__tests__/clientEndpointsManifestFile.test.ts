@@ -29,6 +29,8 @@ import {
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 
+const SELF_HOST_API = 'http://127.0.0.1:19828';
+
 const MANIFESTS = [
   {
     label: 'cn',
@@ -69,6 +71,11 @@ describe.each(MANIFESTS)('config/endpoint*.json 守门($label)', ({ filePath, le
     expect(parsed.cindySkillHubApiBaseUrl).not.toBe(parsed.skillhubApiBaseUrl);
   });
 
+  it('生产清单仍携带自建清单自举地址', () => {
+    const parsed = JSON.parse(rawText) as Record<string, unknown>;
+    expect(parsed.manifestBaseUrl).toBe(SELF_HOST_API);
+  });
+
   it('无未知字段(字段名拼错会被客户端当未知字段忽略,静默不生效)', () => {
     const parsed = JSON.parse(rawText) as Record<string, unknown>;
     const keys = Object.keys(parsed).filter(
@@ -77,7 +84,44 @@ describe.each(MANIFESTS)('config/endpoint*.json 守门($label)', ({ filePath, le
     const allowed = new Set<string>([
       ...CLIENT_ENDPOINT_KEYS,
       CLIENT_ENDPOINT_REVIEW_KEY,
+      'manifestBaseUrl',
     ]);
     expect(keys.filter((key) => !allowed.has(key))).toEqual([]);
+  });
+});
+
+describe('config/endpoint.selfhost.json 自建清单', () => {
+  const rawText = fs.readFileSync(
+    path.join(REPO_ROOT, 'config', 'endpoint.selfhost.json'),
+    'utf8',
+  );
+
+  it('必须能被客户端 parser 以 allowHttp 接受', () => {
+    expect(parseClientEndpointManifest(rawText, { allowHttp: true })).toMatchObject({
+      ok: true,
+    });
+  });
+
+  it('所有 API 端点指向自建 cindy-server，不再有官方 API 地址', () => {
+    const parsed = JSON.parse(rawText) as Record<string, unknown>;
+    for (const key of [
+      'authApiBaseUrl',
+      'chatApiBaseUrl',
+      'deviceLinkApiBaseUrl',
+      'oauthBrokerApiBaseUrl',
+      'ossApiBaseUrl',
+      'heartbeatUrl',
+      'modelAccessApiBaseUrl',
+      'voiceApiBaseUrl',
+      'githubApiBaseUrl',
+      'skillhubApiBaseUrl',
+      'cindySkillHubApiBaseUrl',
+      'pluginApiBaseUrl',
+    ]) {
+      expect(parsed[key]).toBe(SELF_HOST_API);
+    }
+    expect(parsed.mobileUpdateBaseUrl).toBe(`${SELF_HOST_API}/api/mobile-update`);
+    expect(parsed.manifestBaseUrl).toBe(SELF_HOST_API);
+    expect(parsed.cdnBaseUrl).toMatch(/^https:\/\/hotfix\.cindy\.(app|com\.cn)\/cindy$/);
   });
 });

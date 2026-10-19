@@ -1,8 +1,4 @@
 {
-  "cn": [
-    "https://raw.githubusercontent.com/makecindy/cindy/main/config/endpoint.json"
-  ],
-  "global": [
-    "https://raw.githubusercontent.com/makecindy/cindy/main/config/endpoint.global.json"
-  ]
+  "cn": [],
+  "global": []
 }

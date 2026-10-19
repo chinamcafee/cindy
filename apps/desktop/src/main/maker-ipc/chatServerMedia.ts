@@ -11,6 +11,7 @@ import { botGroupAttachmentsPath } from './botGroupWorkDir.js';
 import { safeAttachmentFileName } from './botGroupAttachments.js';
 import type { BotGroupAttachment } from '../../shared/botGroupChat.js';
 import type { ChatApi, ChatContentBlock } from './chatServerMigration.js';
+import { isSelfHostedHttpUrl } from './selfHostedHttp.js';
 
 const MAX_SIZE = 100 * 1024 * 1024;
 /** Files of one send uploaded at once; each holds its bytes in memory until sealed. */
@@ -20,7 +21,8 @@ export function createChatMedia(api: ChatApi, current: () => boolean, log?: { wa
   const check = () => { if (!current()) throw new Error('OWNER_CHANGED'); };
   const signedUrl = (value: string) => {
     const url = new URL(value);
-    if ((url.protocol !== 'https:' && !(options.allowLoopback && url.origin === 'http://127.0.0.1:3018')) || url.username || url.password) throw new Error('INVALID_MEDIA_URL');
+    const selfHosted = options.allowLoopback && isSelfHostedHttpUrl(url);
+    if ((url.protocol !== 'https:' && !selfHosted) || url.username || url.password) throw new Error('INVALID_MEDIA_URL');
     return url.href;
   };
   return {

@@ -17,7 +17,7 @@ if (!cmd || !arg) {
 
 async function main() {
   const list = await fetch(`http://127.0.0.1:${PORT}/json/list`).then(r => r.json());
-  const target = list.find(t => t.type === 'page' && t.url.startsWith('http://localhost:5173'));
+  const target = list.find(t => t.type === 'page' && t.url.startsWith('http://localhost:15900'));
   if (!target) { console.error('renderer page target not found'); process.exit(3); }
   const ws = new WebSocket(target.webSocketDebuggerUrl);
   ws.on('error', (e) => { console.error('ws error', e.message); process.exit(4); });

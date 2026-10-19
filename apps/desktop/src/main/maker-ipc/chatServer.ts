@@ -16,6 +16,7 @@ import { request as httpsRequest } from 'node:https';
 import { migrateLocalGroups, type ChatContentBlock } from './chatServerMigration.js';
 import { chatErrorDiagnostic, chatGroupFailure, missingGroupCode } from './chatServerErrors.js';
 import { createChatMedia } from './chatServerMedia.js';
+import { isSelfHostedHttpUrl } from './selfHostedHttp.js';
 import { chatServerWorkspaces } from './chatServerWorkspaces.js';
 import { buildPlanStepBrief } from './botGroupDivision.js';
 import { chatMigrationReceipts } from './chatMigrationReceipts.js';
@@ -465,7 +466,7 @@ function createChatServer(local: BotGroupChatService, deps: BotGroupChatServiceD
     if (!current()) return Promise.reject(new Error('OWNER_CHANGED'));
     if (!config.baseUrl) return Promise.reject(new Error('CHAT_ENDPOINT_UNAVAILABLE'));
     const url = new URL(`${config.baseUrl}/v1${route}`);
-    if (url.protocol !== 'https:' && (app.isPackaged || url.origin !== 'http://127.0.0.1:3018')) return Promise.reject(new Error('INVALID_CHAT_ENDPOINT'));
+    if (url.protocol !== 'https:' && !isSelfHostedHttpUrl(url)) return Promise.reject(new Error('INVALID_CHAT_ENDPOINT'));
     const token = getAccessToken();
     if (!token) return Promise.reject(new Error('AUTH_REQUIRED'));
     const started = Date.now();
@@ -519,7 +520,8 @@ function createChatServer(local: BotGroupChatService, deps: BotGroupChatServiceD
       throw error;
     });
   }
-  const media = createChatMedia(api, current, deps.log, { allowLoopback: !app.isPackaged && process.env.XDT_ISOLATED === '1' && config.baseUrl === 'http://127.0.0.1:3018' });
+  const selfHostedChatBase = isSelfHostedHttpUrl(config.baseUrl);
+  const media = createChatMedia(api, current, deps.log, { allowLoopback: selfHostedChatBase });
   const threads = createThreadProjection<Message>({
     threadPage: (roomId, rootId, limit, before) => api<Message[]>(`/conversations/${roomId}/messages?threadRootId=${rootId}&limit=${limit}${before ? `&before=${before}` : ''}`),
     // The same visibility rule as every other single-message read.

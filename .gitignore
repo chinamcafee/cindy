@@ -199,3 +199,7 @@ apps/desktop/resources/builtin-ghosts/
 
 # 本地验收截图与设计稿等任务产物(只在本地保存,不入仓)。
 artifacts/
+
+# Local Android Gradle/Kotlin caches
+**/.gradle/
+**/.kotlin/

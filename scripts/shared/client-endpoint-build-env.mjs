@@ -55,21 +55,38 @@ export function loadEndpointManifestBaseUrl(options = {}) {
     throw new Error(`客户端端点清单 schemaVersion 非法: ${manifestPath}`);
   }
 
-  const raw = parsed.cdnBaseUrl;
+  // `manifestBaseUrl` decouples manifest discovery from the asset CDN. When
+  // absent, keep the legacy behaviour (discover from cdnBaseUrl).
+  const raw = parsed.manifestBaseUrl ?? parsed.cdnBaseUrl;
   if (typeof raw !== 'string' || !raw.trim()) {
-    throw new Error(`客户端端点清单缺少非空字段 cdnBaseUrl: ${manifestPath}`);
+    throw new Error(`客户端端点清单缺少非空字段 manifestBaseUrl/cdnBaseUrl: ${manifestPath}`);
   }
   const normalized = raw.trim().replace(/\/+$/, '');
   let url;
   try {
     url = new URL(normalized);
   } catch {
-    throw new Error(`客户端端点清单字段 cdnBaseUrl 不是合法绝对 URL: ${manifestPath}`);
+    throw new Error(`客户端端点清单字段 manifestBaseUrl/cdnBaseUrl 不是合法绝对 URL: ${manifestPath}`);
   }
-  if (url.protocol !== 'https:' || url.username || url.password) {
-    throw new Error(`客户端端点清单字段 cdnBaseUrl 必须是无凭据 HTTPS URL: ${manifestPath}`);
+  if (url.username || url.password) {
+    throw new Error(`客户端端点清单字段 manifestBaseUrl/cdnBaseUrl 不能包含凭据: ${manifestPath}`);
+  }
+  if (url.protocol !== 'https:' && !(url.protocol === 'http:' && isPrivateHttpHost(url.hostname))) {
+    throw new Error(`客户端端点清单字段 manifestBaseUrl/cdnBaseUrl 必须是 HTTPS,或自建服务使用的回环/局域网 HTTP: ${manifestPath}`);
   }
   return normalized;
+}
+
+/** Self-hosted development servers use loopback or RFC1918 addresses. */
+export function isPrivateHttpHost(hostname) {
+  const host = hostname.toLowerCase().replace(/^\[|\]$/g, '');
+  if (host === 'localhost' || host === '::1') return true;
+  const parts = host.split('.');
+  if (parts.length !== 4) return false;
+  const octets = parts.map((part) => (/^\d{1,3}$/.test(part) ? Number(part) : NaN));
+  if (octets.some((octet) => !Number.isInteger(octet) || octet < 0 || octet > 255)) return false;
+  const [a, b] = octets;
+  return a === 127 || a === 10 || (a === 192 && b === 168) || (a === 172 && b >= 16 && b <= 31);
 }
 
 /**

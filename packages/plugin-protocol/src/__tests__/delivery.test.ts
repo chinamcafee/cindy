@@ -133,7 +133,7 @@ describe('plugin delivery contract', () => {
     expect(response.plugins[0]?.currentRelease.icon).toBeNull();
   });
 
-  it('rejects non-HTTPS icon URLs and invalid icon hashes', () => {
+  it('rejects non-HTTPS public icon URLs and invalid icon hashes', () => {
     const plugin = {
       id: pluginId,
       ghostId: validManifest.id,
@@ -149,7 +149,7 @@ describe('plugin delivery contract', () => {
         sha256: 'a'.repeat(64),
         sizeBytes: 1024,
         publishedAt: '2026-07-19T00:00:00.000Z',
-        icon: { ...validIcon, url: 'http://localhost:3391/icon.png' },
+        icon: { ...validIcon, url: 'http://icons.example.com/icon.png' },
       },
     };
     expect(() =>

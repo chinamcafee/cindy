@@ -100,6 +100,10 @@ describe('plugin logical identity', () => {
     ];
     const legacyPlugin = { id: plugin.id, ghostId: 'helper', currentRelease: plugin.currentRelease };
     expect(downloadIdentityMatchesPlugin({}, legacyPlugin)).toBe(true);
+    const legacyDownload = { pluginId: plugin.id, releaseId: 'release-1', ghostId: 'helper' };
+    expect(downloadIdentityMatchesPlugin(legacyDownload, legacyPlugin)).toBe(true);
+    expect(downloadIdentityMatchesPlugin({ ...legacyDownload, namespace: null }, legacyPlugin)).toBe(true);
+    expect(downloadIdentityMatchesPlugin({ ...legacyDownload, namespace: 'acme' }, legacyPlugin)).toBe(false);
     for (const [download, expected] of cases) {
       expect(downloadIdentityMatchesPlugin(download, plugin)).toBe(expected);
     }

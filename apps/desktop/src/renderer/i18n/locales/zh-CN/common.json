@@ -7436,6 +7436,8 @@
   "login": {
     "title": "欢迎使用 Cindy",
     "subtitle": "选择一种方式安全登录",
+    "usePhone": "手机号登录",
+    "useEmail": "邮箱登录",
     "savedLoginPreserved": "恢复操作会保留已保存的登录信息",
     "phonePlaceholder": "请输入手机号",
     "emailPlaceholder": "请输入邮箱",

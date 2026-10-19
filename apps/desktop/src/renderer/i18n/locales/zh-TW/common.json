@@ -7436,6 +7436,8 @@
   "login": {
     "title": "歡迎使用 Cindy",
     "subtitle": "選擇一種方式安全登入",
+    "usePhone": "手機號登入",
+    "useEmail": "電子郵件登入",
     "savedLoginPreserved": "恢復操作會保留已儲存的登入資訊",
     "phonePlaceholder": "請輸入手機號碼",
     "emailPlaceholder": "請輸入電子郵件",

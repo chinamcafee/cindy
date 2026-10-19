@@ -122,7 +122,8 @@ export function resolveDesktopDevStartupConfig({
     mode === "remote"
       ? endpointsCdn
         ? undefined
-        : `config/${{ cn: "endpoint.json", global: "endpoint.global.json", dev: "endpoint.dev.json" }[region]}`
+        : // Self-hosted API backend is the default for dev in this fork.
+          "config/endpoint.selfhost.json"
       : env.XDT_ENDPOINT_MANIFEST_FILE?.trim() || undefined;
   return { region, endpointsCdn, endpointManifestFile };
 }

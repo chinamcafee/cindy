@@ -4,7 +4,7 @@ import {
   subscribeMobileAuthOwner,
 } from "@/auth/authOwnerGeneration";
 import { ensureDeviceId } from "@/auth/deviceId";
-import { getActiveMobileSessionRealm } from "@/config/env";
+import { DEVICE_LINK_API_BASE_URL, getActiveMobileSessionRealm } from "@/config/env";
 import { remoteCredentials } from "../../modules/cindy-remote-credentials/src";
 
 let resetBarrier: Promise<void> = Promise.resolve();
@@ -25,7 +25,7 @@ export async function configureCredentialIdentity(
   await resetBarrier;
   const authDevice = await ensureDeviceId();
   if (!isMobileAuthOwnerCurrent(owner)) throw new Error("CREDENTIAL_CANCELLED");
-  await remoteCredentials.configure(realm, owner.accountId, authDevice, token);
+  await remoteCredentials.configure(realm, owner.accountId, authDevice, token, DEVICE_LINK_API_BASE_URL);
   if (!isMobileAuthOwnerCurrent(owner)) throw new Error("CREDENTIAL_CANCELLED");
 }
 

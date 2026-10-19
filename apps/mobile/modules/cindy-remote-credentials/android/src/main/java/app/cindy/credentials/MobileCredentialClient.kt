@@ -36,6 +36,7 @@ internal class MobileCredentialClient(context: Context, activity: () -> Fragment
   private val configureLock = Mutex()
   private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
   private var owner: Owner? = null
+  private var origin: String? = null
   private var epoch = 0L
   private var token = ""
   private var key: KeyPair? = null
@@ -43,12 +44,13 @@ internal class MobileCredentialClient(context: Context, activity: () -> Fragment
   private var session: Session? = null
   private var monitor: Job? = null
   var foreground = true
-  suspend fun configure(realm: String, member: String, authDevice: String, token: String): String = configureLock.withLock {
+  suspend fun configure(realm: String, member: String, authDevice: String, token: String, endpoint: String? = null): String = configureLock.withLock {
     requireCredential(realm in setOf("global", "cn") && member.isNotEmpty() && authDevice.isNotEmpty(), "CREDENTIAL_INVALID_IDENTITY")
     val next = Owner(realm, member, authDevice)
     if (owner != next) { reset(); owner = next }
     this.token = token
-    val generation = epoch; val api = CredentialDirectory(realm, member)
+    this.origin = endpoint?.trim()?.takeIf { it.isNotEmpty() }
+    val generation = epoch; val api = CredentialDirectory(realm, member, origin)
     val signing = key ?: installation.key(realm)
     val current = identity?.let { api.lookup(it.id, token) } ?: api.enroll(signing, token)
     requireCredential(epoch == generation && owner == next, "CREDENTIAL_CANCELLED")
@@ -63,7 +65,7 @@ internal class MobileCredentialClient(context: Context, activity: () -> Fragment
     val key = key ?: throw CredentialFailure("CREDENTIAL_UNAVAILABLE")
     val identity = identity ?: throw CredentialFailure("CREDENTIAL_UNAVAILABLE")
     val generation = epoch
-    val headers = CredentialDirectory(owner.realm, owner.member).headers(key, identity.id, owner.authDevice, token,
+    val headers = CredentialDirectory(owner.realm, owner.member, origin).headers(key, identity.id, owner.authDevice, token,
       method, body?.let { JSONObject(it) })
     requireCredential(epoch == generation, "CREDENTIAL_CANCELLED"); return headers
   }
@@ -73,7 +75,7 @@ internal class MobileCredentialClient(context: Context, activity: () -> Fragment
     val key = key ?: throw CredentialFailure("CREDENTIAL_UNAVAILABLE")
     val identity = identity ?: throw CredentialFailure("CREDENTIAL_UNAVAILABLE")
     close(); val generation = epoch
-    val api = CredentialDirectory(owner.realm, owner.member)
+    val api = CredentialDirectory(owner.realm, owner.member, origin)
     val (local, remote) = coroutineScope {
       val a = async { api.lookup(identity.id, token) }; val b = async { api.lookup(target, token) }; a.await() to b.await()
     }
@@ -218,7 +220,7 @@ internal class MobileCredentialClient(context: Context, activity: () -> Fragment
         delay(10_000)
         val owner = owner ?: return@launch
         try {
-          state.channel.requireConfirmed(); val api = CredentialDirectory(owner.realm, owner.member)
+          state.channel.requireConfirmed(); val api = CredentialDirectory(owner.realm, owner.member, origin)
           val (local, remote) = coroutineScope {
             val a = async { api.lookup(state.local.id, token) }; val b = async { api.lookup(state.remote.id, token) }; a.await() to b.await()
           }

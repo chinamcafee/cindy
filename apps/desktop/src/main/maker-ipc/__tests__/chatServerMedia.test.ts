@@ -89,7 +89,9 @@ describe('chat private media', () => {
     const api = vi.fn(async () => ({ id: 'media', uploadUrl })) as unknown as ChatApi;
     await expect(createChatMedia(api, () => true).upload('room','op',[attachment],'actor')).rejects.toThrow('INVALID_MEDIA_URL');
     await expect(createChatMedia(api, () => true, undefined, { allowLoopback: true }).upload('room','op',[attachment],'actor')).resolves.toHaveLength(1);
-    uploadUrl = 'http://127.0.0.1:3019/private';
+    uploadUrl = 'http://192.168.1.20:8080/private';
+    await expect(createChatMedia(api, () => true, undefined, { allowLoopback: true }).upload('room','op',[attachment],'actor')).resolves.toHaveLength(1);
+    uploadUrl = 'http://media.example.com/private';
     await expect(createChatMedia(api, () => true, undefined, { allowLoopback: true }).upload('room','op',[attachment],'actor')).rejects.toThrow('INVALID_MEDIA_URL');
   });
 

@@ -1,5 +1,6 @@
 import cnManifest from '../../../config/endpoint.json';
 import globalManifest from '../../../config/endpoint.global.json';
+import selfHostManifest from '../../../config/endpoint.selfhost.json';
 import mirrors from '../../../config/endpoint-manifest-mirrors.json';
 import {
   parseClientEndpointManifest,
@@ -49,8 +50,12 @@ export function classifyEndpointManifestFailure(
 function parseForRegion(
   text: string,
   region: ClientEndpointRegion,
+  allowHttp = false,
 ): ParseClientEndpointManifestResult {
-  const parsed = parseClientEndpointManifest(text);
+  const parsed = parseClientEndpointManifest(
+    text,
+    allowHttp ? { allowHttp: true } : undefined,
+  );
   if (parsed.ok && parsed.region !== null && parsed.region !== region) {
     return { ok: false, reason: `region-mismatch:${region}:${parsed.region}` };
   }
@@ -60,11 +65,15 @@ function parseForRegion(
 export function parseTrustedEndpointSnapshot(
   text: string,
   region: ClientEndpointRegion,
+  allowHttp = false,
 ) {
   if (text.length > ENDPOINT_CACHE_MAX_CHARS) return null;
-  const parsed = parseForRegion(text, region);
+  const parsed = parseForRegion(text, region, allowHttp);
+  if (!parsed.ok) return null;
+  // Self-hosted manifests are served by a user-controlled origin and may use
+  // loopback/LAN HTTP, so the production domain trust list cannot apply.
   if (
-    !parsed.ok ||
+    !allowHttp &&
     findUntrustedCachedEndpoint(parsed.endpoints, {
       regionDomain: REGION_ENDPOINT_DOMAIN[region],
       crossRegionDomain: REGION_ENDPOINT_DOMAIN.global,
@@ -76,13 +85,27 @@ export function parseTrustedEndpointSnapshot(
 
 const bundledManifests = { cn: cnManifest, global: globalManifest };
 
-/** Custom/self-hosted discovery must never fall back to Cindy production. */
+/**
+ * Custom/self-hosted discovery must never fall back to Cindy production.
+ * `manifestBaseUrl` (when present) decouples manifest discovery from the asset
+ * CDN, so a self-hosted manifest can keep using the official update assets.
+ */
 export function getBundledEndpointManifest(
   region: ClientEndpointRegion,
   sourceUrl: string,
 ): string | null {
   const manifest = bundledManifests[region];
-  if (sourceUrl !== `${manifest.cdnBaseUrl}/endpoint.json`) return null;
+  const manifestBaseUrl = (manifest as { manifestBaseUrl?: string })
+    .manifestBaseUrl;
+  const normalized = sourceUrl.replace(/\/+$/, '');
+  if (
+    manifestBaseUrl &&
+    normalized === `${manifestBaseUrl.replace(/\/+$/, '')}/endpoint.json`
+  ) {
+    return JSON.stringify(selfHostManifest);
+  }
+  if (normalized !== `${manifest.cdnBaseUrl.replace(/\/+$/, '')}/endpoint.json`)
+    return null;
   return JSON.stringify(manifest);
 }
 
@@ -100,6 +123,7 @@ export function readTrustedEndpointCache(
   value: unknown,
   region: ClientEndpointRegion,
   sourceUrl: string,
+  allowHttp = false,
 ): {
   parsed: Extract<ParseClientEndpointManifestResult, { ok: true }>;
   text: string;
@@ -113,7 +137,11 @@ export function readTrustedEndpointCache(
     typeof entry.manifestText !== 'string'
   )
     return null;
-  const parsed = parseTrustedEndpointSnapshot(entry.manifestText, region);
+  const parsed = parseTrustedEndpointSnapshot(
+    entry.manifestText,
+    region,
+    allowHttp,
+  );
   return parsed ? { parsed, text: entry.manifestText } : null;
 }
 
@@ -152,6 +180,11 @@ export interface ResilientEndpointDeps {
   /** Host/build injected only. Undefined selects the compiled anchors. */
   mirrorUrls?: readonly string[];
   bundledText?: string | null;
+  /**
+   * Opt-in for a self-hosted manifest served over HTTP (loopback/LAN).
+   * Packaged production paths leave this false.
+   */
+  allowHttp?: boolean;
 }
 
 /** One complete snapshot per resolution. Primary configuration errors remain fatal. */
@@ -163,7 +196,10 @@ export async function resolveResilientEndpointManifest(
   const timeoutMs = deps.timeoutMs ?? ENDPOINT_DISCOVERY_TIMEOUT_MS;
   // At most one independent mirror keeps the whole discovery budget bounded.
   const mirrorUrls =
-    deps.mirrorUrls ?? getEndpointManifestMirrors(deps.region, deps.sourceUrl);
+    deps.mirrorUrls ??
+    (deps.allowHttp
+      ? []
+      : getEndpointManifestMirrors(deps.region, deps.sourceUrl));
   const urls = [...new Set([deps.sourceUrl, ...mirrorUrls])].slice(0, 2);
   let reason = 'fetch-failed';
   for (const [index, url] of urls.entries()) {
@@ -175,7 +211,10 @@ export async function resolveResilientEndpointManifest(
       if (index === 0) return { ok: false, reason };
       continue;
     }
-    if (address.protocol !== 'https:' || address.username || address.password) {
+    const protocolAllowed =
+      address.protocol === 'https:' ||
+      (deps.allowHttp === true && address.protocol === 'http:');
+    if (!protocolAllowed || address.username || address.password) {
       reason = 'invalid-manifest-url';
       if (index === 0) return { ok: false, reason };
       continue;
@@ -199,7 +238,7 @@ export async function resolveResilientEndpointManifest(
       { ok: false, detail: `timeout-${timeoutMs}ms` },
     );
     if (fetched.ok) {
-      const parsed = parseForRegion(fetched.text, deps.region);
+      const parsed = parseForRegion(fetched.text, deps.region, deps.allowHttp);
       if (!parsed.ok) {
         if (index === 0) return parsed;
         reason = parsed.reason;
@@ -208,6 +247,7 @@ export async function resolveResilientEndpointManifest(
       const restorable = parseTrustedEndpointSnapshot(
         fetched.text,
         deps.region,
+        deps.allowHttp,
       );
       // A mirror cannot redirect authentication to another region, even on old region-less manifests.
       if (index > 0 && !restorable) {
@@ -241,13 +281,16 @@ export async function resolveResilientEndpointManifest(
     await bounded(() => deps.readCache?.(), STORAGE_TIMEOUT_MS, undefined),
     deps.region,
     deps.sourceUrl,
+    deps.allowHttp,
   );
   if (cached) return { ok: true, ...cached, source: 'cache' };
   const text =
     deps.bundledText === undefined
       ? getBundledEndpointManifest(deps.region, deps.sourceUrl)
       : deps.bundledText;
-  const parsed = text ? parseTrustedEndpointSnapshot(text, deps.region) : null;
+  const parsed = text
+    ? parseTrustedEndpointSnapshot(text, deps.region, deps.allowHttp)
+    : null;
   return parsed && text
     ? { ok: true, parsed, text, source: 'bundled' }
     : { ok: false, reason };

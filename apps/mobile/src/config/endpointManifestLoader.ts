@@ -58,6 +58,8 @@ export function resolveMobileEndpointManifest(
   return resolveResilientEndpointManifest({
     region,
     sourceUrl,
+    // Self-hosted manifests may live on a loopback/LAN HTTP origin.
+    allowHttp: sourceUrl.startsWith('http://'),
     fetchText: fetchMobileEndpointManifest,
     readCache: async () => {
       const raw = await AsyncStorage.getItem(key);

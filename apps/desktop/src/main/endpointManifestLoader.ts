@@ -12,15 +12,18 @@ export function resolveDesktopEndpointManifest(
   region: ClientEndpointRegion,
   baseUrl: string,
   fetchText: ResilientEndpointDeps['fetchText'],
+  allowHttp = false,
 ) {
   const sourceUrl = baseUrl ? `${baseUrl.replace(/\/+$/, '')}/endpoint.json` : '';
   return resolveResilientEndpointManifest({
     region,
     sourceUrl,
     fetchText,
+    allowHttp,
     readCache: () => {
       const scoped = readEndpointManifestCache(userDataDir, region);
-      if (readTrustedEndpointCache(scoped, region, sourceUrl)) return scoped;
+      if (readTrustedEndpointCache(scoped, region, sourceUrl, allowHttp))
+        return scoped;
       return readEndpointManifestCache(userDataDir);
     },
     writeCache: (entry) => writeEndpointManifestCache(userDataDir, entry, region),

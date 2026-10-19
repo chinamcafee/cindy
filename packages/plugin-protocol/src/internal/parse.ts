@@ -43,6 +43,22 @@ export function sha256(value: unknown, path: string): string {
   return text;
 }
 
+function isPrivateIpv4(host: string): boolean {
+  const parts = host.split('.');
+  if (parts.length !== 4) return false;
+  const octets = parts.map((part) => (/^\d{1,3}$/.test(part) ? Number(part) : NaN));
+  if (octets.some((octet) => !Number.isInteger(octet) || octet < 0 || octet > 255)) return false;
+  const [a, b] = octets as [number, number, number, number];
+  return a === 127 || a === 10 || (a === 192 && b === 168) || (a === 172 && b >= 16 && b <= 31);
+}
+
+/** 自建服务默认跑在回环或局域网明文 HTTP 上,与端点清单的 allowHttp 口径一致。 */
+export function isPrivateHttpHost(hostname: string): boolean {
+  const host = hostname.toLowerCase().replace(/^\[|\]$/g, '');
+  if (host === 'localhost' || host === '::1') return true;
+  return isPrivateIpv4(host);
+}
+
 export function httpsUrl(value: unknown, path: string, max = 8_192): string {
   const text = string(value, path, max);
   let parsed: URL;
@@ -51,7 +67,10 @@ export function httpsUrl(value: unknown, path: string, max = 8_192): string {
   } catch {
     throw new PluginProtocolError(`${path} 必须是 HTTPS URL`);
   }
-  if (parsed.protocol !== 'https:') {
+  const secure = parsed.protocol === 'https:';
+  const selfHosted =
+    parsed.protocol === 'http:' && isPrivateHttpHost(parsed.hostname);
+  if (!secure && !selfHosted) {
     throw new PluginProtocolError(`${path} 必须是 HTTPS URL`);
   }
   return text;

@@ -34,6 +34,9 @@ const CONTROLLED_SOURCE_FILES = Object.freeze([
   'apps/mobile/eas.json',
   'packages/embedding-client/src/client.ts',
   'packages/embedding-client/src/types.ts',
+  // Native credential transport must take its origin from the JS endpoint
+  // manifest; a production fallback here would silently bypass cindy-server.
+  'apps/mobile/modules/cindy-remote-credentials/android/src/main/java/app/cindy/credentials/CredentialDirectory.kt',
 ]);
 const CONTROLLED_APP_CONFIG_FILES = Object.freeze([
   'scripts/restart-desktop-remote.mjs',
@@ -82,18 +85,60 @@ function findAbsoluteOrigins(content) {
 /** Production manifests must publish the endpoint required by the mobile direct client. */
 export function validatePublishedChatEndpoint(manifest) {
   let url;
-  try { url = new URL(manifest?.chatApiBaseUrl); } catch { throw new Error('chatApiBaseUrl must be a nonempty HTTPS URL'); }
-  if (url.protocol !== 'https:' || !url.hostname || url.username || url.password || url.search || url.hash) {
-    throw new Error('chatApiBaseUrl must be an HTTPS base URL without credentials, query or fragment');
+  try { url = new URL(manifest?.chatApiBaseUrl); } catch { throw new Error('chatApiBaseUrl must be a nonempty URL'); }
+  const selfHostedHttp =
+    url.protocol === 'http:' && isPrivateHttpHost(url.hostname);
+  if ((url.protocol !== 'https:' && !selfHostedHttp) || !url.hostname || url.username || url.password || url.search || url.hash) {
+    throw new Error('chatApiBaseUrl must be an HTTPS (or self-hosted loopback/LAN HTTP) base URL without credentials, query or fragment');
   }
+}
+
+function isPrivateHttpHost(hostname) {
+  const host = hostname.toLowerCase().replace(/^\[|\]$/g, '');
+  if (host === 'localhost' || host === '::1') return true;
+  const parts = host.split('.');
+  if (parts.length !== 4) return false;
+  const octets = parts.map((part) => (/^\d{1,3}$/.test(part) ? Number(part) : NaN));
+  if (octets.some((octet) => !Number.isInteger(octet) || octet < 0 || octet > 255)) return false;
+  const [a, b] = octets;
+  return a === 127 || a === 10 || (a === 192 && b === 168) || (a === 172 && b >= 16 && b <= 31);
 }
 
 function main() {
   const errors = [];
 
   for (const file of ['config/endpoint.json', 'config/endpoint.global.json']) {
-    try { validatePublishedChatEndpoint(JSON.parse(fs.readFileSync(path.join(REPO_ROOT, file), 'utf8'))); }
-    catch (error) { errors.push(`${file}: ${error.message}`); }
+    try {
+      const manifest = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, file), 'utf8'));
+      validatePublishedChatEndpoint(manifest);
+      // This fork's clients must bootstrap from cindy-server, never from the
+      // official hotfix CDN. Keep manifest discovery on the self-host origin.
+      const base = new URL(manifest.manifestBaseUrl);
+      if (base.protocol !== 'http:' || !isPrivateHttpHost(base.hostname)) {
+        errors.push(`${file}: manifestBaseUrl must be a self-hosted loopback/LAN HTTP URL`);
+      }
+    } catch (error) { errors.push(`${file}: ${error.message}`); }
+  }
+
+  // The self-host manifest is the runtime source for this fork: every business
+  // URL in it must stay on the self-hosted loopback/LAN service. cdnBaseUrl and
+  // websiteUrl are static/update assets and intentionally remain official.
+  try {
+    const selfHostFile = 'config/endpoint.selfhost.json';
+    const manifest = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, selfHostFile), 'utf8'));
+    for (const [key, value] of Object.entries(manifest)) {
+      if (key.startsWith('_') || key === 'schemaVersion' || key === 'cdnBaseUrl' || key === 'websiteUrl') continue;
+      if (typeof value !== 'string' || value.trim() === '') continue;
+      if (!/(Url|BaseUrl)$/.test(key)) continue;
+      const url = new URL(value);
+      if (url.protocol !== 'http:' && url.protocol !== 'ws:') {
+        errors.push(`${selfHostFile}: ${key} must use self-hosted http/ws`);
+      } else if (!isPrivateHttpHost(url.hostname)) {
+        errors.push(`${selfHostFile}: ${key} must point at a loopback/LAN host`);
+      }
+    }
+  } catch (error) {
+    errors.push(`config/endpoint.selfhost.json: ${error.message}`);
   }
 
   for (const file of CONTROLLED_SOURCE_FILES) {

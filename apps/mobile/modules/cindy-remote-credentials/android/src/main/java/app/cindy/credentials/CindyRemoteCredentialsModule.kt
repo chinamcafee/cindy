@@ -22,8 +22,8 @@ class CindyRemoteCredentialsModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("CindyRemoteCredentials")
     Events("invalidated")
-    AsyncFunction("configure") Coroutine { realm: String, member: String, authDevice: String, token: String ->
-      guarded { client.configure(realm, member, authDevice, token) }
+    AsyncFunction("configure") Coroutine { realm: String, member: String, authDevice: String, token: String, endpoint: String? ->
+      guarded { client.configure(realm, member, authDevice, token, endpoint) }
     }
     AsyncFunction("updateToken") Coroutine { realm: String, member: String, token: String -> guarded { client.updateToken(realm, member, token) } }
     AsyncFunction("relayHeaders") Coroutine { -> guarded { client.headers() } }

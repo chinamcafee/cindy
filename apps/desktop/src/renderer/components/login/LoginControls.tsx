@@ -177,6 +177,72 @@ export function LoginTitleBlock({
   );
 }
 
+/**
+ * 手机号 / 邮箱登录方式切换。放在副标题与输入框之间，使用与输入框同族的
+ * 胶囊分段控件，避免把可点文字挤在面板角落。
+ */
+export function LoginIdentifierKindToggle({
+  value,
+  onChange,
+  disabled,
+  phoneLabel,
+  emailLabel,
+}: {
+  value: 'phone' | 'email';
+  onChange: (kind: 'phone' | 'email') => void;
+  disabled?: boolean;
+  phoneLabel: string;
+  emailLabel: string;
+}) {
+  return (
+    <div
+      role="group"
+      aria-label={`${phoneLabel} / ${emailLabel}`}
+      data-testid="login-identifier-kind-toggle"
+      className="absolute flex items-center"
+      style={{
+        left: (PANEL.width - 360) / 2,
+        top: 100,
+        width: 360,
+        height: 52,
+        padding: 4,
+        borderRadius: 26,
+        background: LOGIN_COLORS.controlBg,
+        boxShadow: `inset 0 0 0 1px ${LOGIN_COLORS.controlBorder}`,
+      }}
+    >
+      {(['phone', 'email'] as const).map((kind) => {
+        const active = value === kind;
+        return (
+          <button
+            key={kind}
+            type="button"
+            disabled={disabled}
+            aria-pressed={active}
+            onClick={() => {
+              if (!active) onChange(kind);
+            }}
+            className={cn(
+              'flex h-full flex-1 cursor-pointer items-center justify-center rounded-[22px]',
+              'transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-50',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--login-brand-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--login-panel-bg)]',
+            )}
+            style={{
+              background: active ? LOGIN_COLORS.panelBg : 'transparent',
+              color: active ? LOGIN_COLORS.controlText : LOGIN_COLORS.secondaryText,
+              fontSize: 20,
+              fontWeight: active ? 600 : 400,
+              boxShadow: active ? `inset 0 0 0 1px ${LOGIN_COLORS.controlBorderActive}` : 'none',
+            }}
+          >
+            {kind === 'phone' ? phoneLabel : emailLabel}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export type LoginInputVisualState = 'default' | 'error';
 
 /**

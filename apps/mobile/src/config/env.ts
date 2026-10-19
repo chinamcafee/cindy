@@ -71,20 +71,11 @@ export const MOBILE_REDIRECT_URL = `${APP_SCHEME}://auth`;
 // live binding,闸门放行前业务树不挂载,初值空串不会被真实消费。
 const DEV_MANIFEST_PARSED = (() => {
   if (!__DEV__) return null;
-  const manifestPath = {
-    cn: 'config/endpoint.json',
-    global: 'config/endpoint.global.json',
-    dev: 'config/endpoint.dev.json',
-  }[AUTH_REGION];
+  // Self-hosted cindy-server is the default dev backend in this fork.
+  const manifestPath = 'config/endpoint.selfhost.json';
   const raw: unknown =
-    AUTH_REGION === 'global'
-      ? // eslint-disable-next-line @typescript-eslint/no-require-imports
-        require('../../../../config/endpoint.global.json')
-      : AUTH_REGION === 'dev'
-        ? // eslint-disable-next-line @typescript-eslint/no-require-imports
-          require('../../../../config/endpoint.dev.json')
-        : // eslint-disable-next-line @typescript-eslint/no-require-imports
-          require('../../../../config/endpoint.json');
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    require('../../../../config/endpoint.selfhost.json');
   const parsed = parseClientEndpointManifest(JSON.stringify(raw), {
     allowHttp: true,
   });
@@ -522,7 +513,10 @@ export function getMobileEndpointRealmConfig(): {
   return {
     buildRegion: BUILD_AUTH_REGION,
     manifestRegion: endpointManifestRegion,
-    crossRealmOrgLoginEnabled: AUTH_REGION !== 'dev',
+    crossRealmOrgLoginEnabled:
+      AUTH_REGION !== 'dev' &&
+      trustedMobileRealmManifestBaseUrls().cn.replace(/\/+$/, '') !==
+        trustedMobileRealmManifestBaseUrls().global.replace(/\/+$/, ''),
     realmManifestBaseUrls: trustedMobileRealmManifestBaseUrls(),
   };
 }

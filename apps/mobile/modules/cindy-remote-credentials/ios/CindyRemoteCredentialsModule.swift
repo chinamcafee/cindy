@@ -23,8 +23,9 @@ public final class CindyRemoteCredentialsModule: Module {
     AsyncFunction("beginUnlock") { (target: String, setup: Bool, biometric: Bool, descriptor: String) async throws -> [String: String] in
       try await self.client.begin(target: target, descriptor: descriptor, setup: setup, savedOnly: !setup, biometric: biometric)
     }
-    AsyncFunction("configure") { (realm: String, membership: String, authDevice: String, token: String) async throws -> String in
-      try await self.client.configure(realm: realm, membership: membership, authDevice: authDevice, token: token)
+    AsyncFunction("configure") { (realm: String, membership: String, authDevice: String, token: String, endpoint: String?) async throws -> String in
+      _ = endpoint
+      return try await self.client.configure(realm: realm, membership: membership, authDevice: authDevice, token: token)
     }
     AsyncFunction("updateToken") { (realm: String, membership: String, token: String) async throws in
       try await self.client.updateToken(realm: realm, membership: membership, token: token)

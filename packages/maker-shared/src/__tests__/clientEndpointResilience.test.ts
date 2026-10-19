@@ -11,9 +11,36 @@ import {
 
 const sourceUrl = (region: ClientEndpointRegion) =>
   `https://hotfix.cindy.${region === 'cn' ? 'com.cn' : 'app'}/cindy/endpoint.json`;
+const domain = (region: ClientEndpointRegion) =>
+  region === 'cn' ? 'cindy.com.cn' : 'cindy.app';
+/** Production-contract fixture: independent of the repo's self-hosted manifests. */
+const officialManifest = (region: ClientEndpointRegion) => ({
+  schemaVersion: 1,
+  authApiBaseUrl: `https://auth.${domain(region)}`,
+  chatApiBaseUrl: 'https://chat.cindy.app',
+  deviceLinkApiBaseUrl: `https://device-link.${domain(region)}`,
+  oauthBrokerApiBaseUrl: `https://oauth-broker.${domain(region)}`,
+  ossApiBaseUrl: `https://oss.${domain(region)}`,
+  heartbeatUrl: `https://heartbeat.${domain(region)}`,
+  telegramHookWsUrl: 'wss://telegram-hook.cindy.app',
+  xHookWsUrl: 'wss://x-hook.cindy.app',
+  slackHookWsUrl: 'wss://slack-hook.cindy.app',
+  websiteUrl: `https://${domain(region)}`,
+  modelAccessApiBaseUrl: `https://model-access.${domain(region)}`,
+  voiceApiBaseUrl: `https://voice.${domain(region)}`,
+  githubApiBaseUrl: `https://github.${domain(region)}`,
+  skillhubApiBaseUrl: `https://xd-skillhub.${domain(region)}`,
+  cindySkillHubApiBaseUrl: `https://skill-hub.${domain(region)}`,
+  pluginApiBaseUrl: `https://plugin.${domain(region)}`,
+  cdnBaseUrl: `https://hotfix.${domain(region)}/cindy`,
+  mobileUpdateBaseUrl: `https://mobile-update.${domain(region)}`,
+  authDesktopCallbackUrl: `https://auth.${domain(region)}/api/auth/desktop/callback`,
+  review: '0.1.0',
+  manifestBaseUrl: 'http://127.0.0.1:19828',
+});
 const manifest = (region: ClientEndpointRegion, extra = {}) =>
   JSON.stringify({
-    ...JSON.parse(getBundledEndpointManifest(region, sourceUrl(region))!),
+    ...officialManifest(region),
     ...extra,
   });
 const fail = async (): Promise<EndpointManifestFetchResult> => ({
@@ -301,6 +328,7 @@ describe('regional endpoint resilience', () => {
             fetchText,
             writeCache,
             readCache: () => cached,
+            mirrorUrls: ['https://backup.example.com/cn/endpoint.json'],
           }),
         ).toMatchObject({
           ok: true,

@@ -38,6 +38,7 @@ export interface RemoteCredentialsNative {
     membership: string,
     authDevice: string,
     token: string,
+    endpoint?: string,
   ): Promise<string>;
   updateToken(realm: string, membership: string, token: string): Promise<void>;
   relayHeaders(): Promise<Record<string, string>>;

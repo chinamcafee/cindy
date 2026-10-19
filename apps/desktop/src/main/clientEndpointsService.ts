@@ -152,6 +152,10 @@ export interface ResolveEndpointSourceInput {
  * XDT_ENDPOINT_MANIFEST_FILE 覆盖文件路径(相对路径以仓根为基准),
  * XDT_ENDPOINTS_CDN='1' 切回完整 CDN 链路。
  */
+function manifestBaseUsesHttp(baseUrl: string): boolean {
+  return baseUrl.trim().toLowerCase().startsWith('http://');
+}
+
 export function resolveEndpointSource(input: ResolveEndpointSourceInput): EndpointSource {
   if (input.isPackaged) return { kind: 'cdn' };
   if (input.env.XDT_ENDPOINTS_CDN === '1') return { kind: 'cdn' };
@@ -601,8 +605,20 @@ export function promptRetryDialog(
 
 let resolvedEndpoints: ClientEndpointMap | null = null;
 let resolvedRegion: ClientEndpointRegion | null = null;
-let crossRealmOrgLoginEnabled = BUILD_VARIANT !== 'dev';
 let realmManifestBaseUrls: RealmManifestBaseUrls = DEFAULT_REALM_MANIFEST_BASE_URLS;
+function realmsShareOrigin(): boolean {
+  return (
+    realmManifestBaseUrls.cn.replace(/\/+$/, '') ===
+    realmManifestBaseUrls.global.replace(/\/+$/, '')
+  );
+}
+// A single self-hosted server cannot serve two distinct auth realms. In that
+// deployment cross-realm enterprise discovery is not meaningful and must not
+// turn personal email login into ORG_REALM_UNAVAILABLE.
+let crossRealmOrgLoginEnabled =
+  BUILD_VARIANT !== 'dev' &&
+  DEFAULT_REALM_MANIFEST_BASE_URLS.cn.replace(/\/+$/, '') !==
+    DEFAULT_REALM_MANIFEST_BASE_URLS.global.replace(/\/+$/, '');
 let activeSessionRealm: ClientEndpointRegion | null = null;
 const realmEndpointCache = new Map<ClientEndpointRegion, ClientEndpointMap>();
 /** 本次启动是否走了离线缓存(自动回退或用户确认,而非本次网络拉取)。 */
@@ -1012,8 +1028,12 @@ export async function initClientEndpoints(): Promise<boolean> {
   // REGION_ENDPOINT_DOMAIN 的后果是离线出口 fail closed(新域名的缓存判不可信),
   // 这条 error 日志保证它不会静默失效到没人知道。不阻断启动:主路径不消费该清单。
   const knownRegionDomains = Object.values(REGION_ENDPOINT_DOMAIN);
+  // Self-hosted manifests intentionally live on loopback/LAN HTTP and are not
+  // expected to match the official region-domain trust list.
   const untrustedBootstrap = findBootstrapHostOutsideTrustedDomains(
-    [ENDPOINT_MANIFEST_BASE_URL, ENDPOINT_MANIFEST_PEER_BASE_URL],
+    [ENDPOINT_MANIFEST_BASE_URL, ENDPOINT_MANIFEST_PEER_BASE_URL].filter(
+      (url) => url.trim() && !manifestBaseUsesHttp(url),
+    ),
     knownRegionDomains,
   );
   if (untrustedBootstrap) {
@@ -1044,11 +1064,13 @@ export async function initClientEndpoints(): Promise<boolean> {
               BUILD_AUTH_REGION,
               ENDPOINT_MANIFEST_BASE_URL,
               (url, timeoutMs) => fetchTextViaNet(`${url}?t=${Date.now()}`, timeoutMs),
+              manifestBaseUsesHttp(ENDPOINT_MANIFEST_BASE_URL),
             )
         : undefined,
     promptRetry: (context) => promptRetryDialog(context, sourceLabel, dialogLocale),
     exitApp: () => app.exit(1),
-    allowHttp: source.kind === 'file',
+    allowHttp:
+      source.kind === 'file' || manifestBaseUsesHttp(ENDPOINT_MANIFEST_BASE_URL),
     expectedRegionWhenPresent: BUILD_AUTH_REGION,
     // dev 本地文件:读不到就是路径/内容配置错,不自动重试、也按配置事故出文案
     // (见 BlockingResolveDeps 的 autoRetryDelaysMs / classifyFailure)。
@@ -1181,6 +1203,7 @@ export async function loadClientEndpointsForRealm(
     region,
     baseUrl,
     (url, timeoutMs) => fetchTextViaNet(`${url}?t=${Date.now()}`, timeoutMs),
+    manifestBaseUsesHttp(baseUrl),
   );
   if (!result.ok) throw new Error(result.reason);
   log.info('realm endpoint discovery source=%s region=%s', result.source, region);

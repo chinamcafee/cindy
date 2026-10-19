@@ -35,6 +35,9 @@ import {
 } from '../shared/releaseNotesContent';
 
 import { getBaseUrl, getPlatformKey } from './manifestService';
+import { getClientEndpoint } from './clientEndpointsService';
+import { ENDPOINT_MANIFEST_BASE_URL } from '../shared/endpoints';
+import { isSelfHostedHttpUrl } from './maker-ipc/selfHostedHttp';
 
 import { createLogger } from './logger';
 
@@ -48,6 +51,22 @@ const REQUEST_TIMEOUT_MS = 15_000;
 const MAX_RESPONSE_BYTES = 8 * 1024 * 1024;
 const MAX_RETRIES = 3;
 const RETRY_BASE_DELAY_MS = 1_000;
+
+/** Self-hosted cindy-server serves the release-notes JSON itself. */
+function releaseNotesUrl(platform: string, version: string): string | null {
+  const suffix = `${platform}/${version}.json?t=${Date.now()}`;
+  try {
+    const apiBase = getClientEndpoint('authApiBaseUrl').replace(/\/+$/, '');
+    if (isSelfHostedHttpUrl(apiBase)) {
+      return `${apiBase}/api/release-notes/${suffix}`;
+    }
+  } catch {
+    // A self-hosted build must never fall back to the official CDN; returning
+    // null simply skips release notes until endpoints are initialized.
+    if (isSelfHostedHttpUrl(ENDPOINT_MANIFEST_BASE_URL)) return null;
+  }
+  return `${getBaseUrl()}/notice/${suffix}`;
+}
 
 // ── State ──────────────────────────────────────────────────────────────────
 
@@ -203,7 +222,8 @@ export async function fetchReleaseNotes(version: string): Promise<RawReleaseNote
   const request = (async () => {
     const platform = getPlatformKey();
     // Cache-bust to dodge stale CDN edges
-    const url = `${getBaseUrl()}/notice/${platform}/${version}.json?t=${Date.now()}`;
+    const url = releaseNotesUrl(platform, version);
+    if (!url) return null;
     const json = await fetchCdnJson<RawReleaseNotes>(url);
     if (!json) return null;
     // A 200 payload with nothing renderable (e.g. a v2 document whose topics
@@ -244,7 +264,8 @@ export async function fetchReleaseNotesIndex(): Promise<string[] | null> {
   if (indexCache) return indexCache;
 
   const platform = getPlatformKey();
-  const url = `${getBaseUrl()}/notice/${platform}/index.json?t=${Date.now()}`;
+  const url = releaseNotesUrl(platform, 'index');
+  if (!url) return null;
   const json = await fetchCdnJson<unknown>(url);
   if (!Array.isArray(json)) {
     if (json !== null) log.warn('index.json is not an array; ignoring');

@@ -22,7 +22,7 @@ import java.security.KeyStore
 import java.security.PrivateKey
 import java.security.interfaces.ECPublicKey
 import java.security.spec.ECGenParameterSpec
-import javax.net.ssl.HttpsURLConnection
+import java.net.HttpURLConnection
 
 internal class CredentialInstallation(context: Context) {
   val id: String
@@ -88,15 +88,21 @@ private fun acquireExclusivePublishLock(lock: File, marker: File): Boolean {
   return lock.mkdir()
 }
 
-internal class CredentialDirectory(private val realm: String, private val member: String) {
-  private val origin = when (realm) {
-    "global" -> "https://device-link.cindy.app"
-    "cn" -> "https://device-link.cindy.com.cn"
-    else -> throw CredentialFailure("CREDENTIAL_INVALID_IDENTITY")
-  }
+internal class CredentialDirectory(
+  private val realm: String,
+  private val member: String,
+  originOverride: String? = null,
+) {
+  // Every build is self-hosted: the JS endpoint manifest must provide the
+  // device-link origin. Never silently fall back to a Cindy production host.
+  private val origin = originOverride
+    ?.trim()
+    ?.trimEnd('/')
+    ?.takeIf { it.startsWith("http://") || it.startsWith("https://") }
+    ?: throw CredentialFailure("CREDENTIAL_UNAVAILABLE")
   private suspend fun request(path: String, method: String, token: String, body: JSONObject? = null): JSONObject = withContext(Dispatchers.IO) {
     requireCredential(token.isNotEmpty() && token.length <= 16_384 && '\r' !in token && '\n' !in token, "CREDENTIAL_INVALID_IDENTITY")
-    val connection = URL("$origin/api/device-link/identities$path").openConnection() as HttpsURLConnection
+    val connection = URL("$origin/api/device-link/identities$path").openConnection() as HttpURLConnection
     try {
       connection.instanceFollowRedirects = false; connection.useCaches = false
       connection.connectTimeout = 10_000; connection.readTimeout = 15_000; connection.requestMethod = method

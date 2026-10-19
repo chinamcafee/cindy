@@ -29,6 +29,8 @@ const messages = {
     enterpriseLogin: "以企業身分登入",
     personalLogin: "以個人身分登入",
     emailCode: "傳送電子郵件驗證碼",
+    usePhone: "手機號登入",
+    useEmail: "電子郵件登入",
     ssoRequired: "該組織要求使用企業 SSO 登入。",
     ssoEntry: "使用企業 SSO 登入",
     consentStatement:
@@ -149,6 +151,8 @@ const messages = {
     enterpriseLogin: "以企业身份登录",
     personalLogin: "以个人身份登录",
     emailCode: "发送邮箱验证码",
+    usePhone: "手机号登录",
+    useEmail: "邮箱登录",
     ssoRequired: "该组织要求使用企业 SSO 登录。",
     ssoEntry: "使用企业 SSO 登录",
     consentStatement:
@@ -269,6 +273,8 @@ const messages = {
     enterpriseLogin: "Sign in with your work identity",
     personalLogin: "Sign in with a personal account",
     emailCode: "Send an email code",
+    usePhone: "Phone number",
+    useEmail: "Email address",
     ssoRequired: "Your organization requires enterprise SSO.",
     ssoEntry: "Sign in with enterprise SSO",
     consentStatement:
@@ -403,6 +409,8 @@ const messages = {
     enterpriseLogin: "組織アカウントでログイン",
     personalLogin: "個人アカウントでログイン",
     emailCode: "メールで認証コードを送信",
+    usePhone: "電話番号",
+    useEmail: "メールアドレス",
     ssoRequired: "この組織ではエンタープライズ SSO でのログインが必須です。",
     ssoEntry: "エンタープライズ SSO でログイン",
     consentStatement:
@@ -536,6 +544,8 @@ const messages = {
     enterpriseLogin: "회사 계정으로 로그인",
     personalLogin: "개인 계정으로 로그인",
     emailCode: "이메일 인증 코드 보내기",
+    usePhone: "휴대폰",
+    useEmail: "이메일",
     ssoRequired: "이 조직은 기업 SSO 로그인을 요구합니다.",
     ssoEntry: "기업 SSO로 로그인",
     consentStatement:

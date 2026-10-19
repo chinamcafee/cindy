@@ -110,11 +110,15 @@ export function downloadIdentityMatchesPlugin(
     download.ghostId !== undefined ||
     hasDeliveryNamespace(download);
   if (!hasDownloadIdentity) return true;
+  // Detail 省略 namespace(public / 旧协议)与下载显式返回 null 是同一语义;
+  // 仅当任一侧声明了非根 namespace 时才要求两侧都存在且相等。
+  const downloadNamespace = hasDeliveryNamespace(download) ? download.namespace : null;
+  const pluginNamespace = pluginHasNamespace ? plugin.namespace : null;
   return (
     download.pluginId === plugin.id &&
     download.releaseId === plugin.currentRelease.id &&
     download.ghostId === plugin.ghostId &&
-    sameDeliveryNamespaceState(download, plugin)
+    downloadNamespace === pluginNamespace
   );
 }
 

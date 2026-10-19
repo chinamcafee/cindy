@@ -144,9 +144,9 @@ export function LoginScreen({
   }, [handoffDispatch]);
   const handoffPhase: LoginHandoffPhase = handoff?.state.phase ?? 'done';
   const initializedLoginRef = useRef(false);
-  // identifier 形态 = 构建区域确定性推导(用户拍板 2026-07-21:手机/邮箱分区互斥,
-  // 双 tab 切换移除);providers 仅兜底区域首选方式未下发的场景。
-  const identifierKind: VerificationKind = useMemo(
+  // identifier 形态默认按构建区域推导；个人部署同时开启邮箱/手机号时允许用户
+  // 在登录页显式切换（二者都绑定到同一账号）。
+  const defaultIdentifierKind: VerificationKind = useMemo(
     () =>
       auth.loginState?.step === 'identifier'
         ? resolveIdentifierMethod(AUTH_REGION, auth.loginState.providers)
@@ -155,6 +155,17 @@ export function LoginScreen({
           : 'phone',
     [auth.loginState],
   );
+  const [identifierKindOverride, setIdentifierKindOverride] =
+    useState<VerificationKind | null>(null);
+  const identifierKind: VerificationKind =
+    identifierKindOverride &&
+    auth.loginState?.step === 'identifier' &&
+    auth.loginState.providers[identifierKindOverride]
+      ? identifierKindOverride
+      : defaultIdentifierKind;
+  useEffect(() => {
+    if (auth.loginState?.step !== 'identifier') setIdentifierKindOverride(null);
+  }, [auth.loginState?.step]);
   const [identifier, setIdentifier] = useState('');
   // identifier 本地格式校验错误(设计稿 347:1727:非法邮箱/手机号 → 输入框红边 +
   // 底部红字「请输入正确邮箱」/「请输入正确手机号」)。提交前本地拦截、不 dispatch
@@ -632,6 +643,46 @@ export function LoginScreen({
             title={loginText('title')}
             titleTestID="login.title"
           />
+          {auth.loginState?.step === 'identifier' &&
+          auth.loginState.providers.email &&
+          auth.loginState.providers.phone ? (
+            <View
+              style={styles.identifierKindToggle}
+              testID="login.identifierKindToggle"
+            >
+              {(['phone', 'email'] as const).map((kind) => {
+                const active = identifierKind === kind;
+                return (
+                  <Pressable
+                    key={kind}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: active, disabled }}
+                    disabled={disabled}
+                    onPress={() => {
+                      if (active) return;
+                      setIdentifierKindOverride(kind);
+                      setIdentifier('');
+                      setIdentifierFormatError(null);
+                    }}
+                    style={({ pressed }) => [
+                      styles.identifierKindOption,
+                      active && styles.identifierKindOptionActive,
+                      pressed && styles.identifierKindOptionPressed,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.identifierKindLabel,
+                        active && styles.identifierKindLabelActive,
+                      ]}
+                    >
+                      {loginText(kind === 'phone' ? 'usePhone' : 'useEmail')}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ) : null}
           {identifierKind === 'phone' ? (
             <LoginSkinPhoneInput
               autoComplete="tel"
@@ -1747,6 +1798,43 @@ const configIssueStyles = {
 
 const makeStyles = (colors: ThemeColors) =>
   StyleSheet.create({
+    identifierKindToggle: {
+      backgroundColor: colors.login.controlBg,
+      borderColor: colors.login.controlBorder,
+      borderRadius: radius.pill,
+      borderWidth: StyleSheet.hairlineWidth,
+      flexDirection: 'row',
+      gap: spacing.xs,
+      height: 68,
+      left: LOGIN_CONTROL.x,
+      padding: spacing.xs,
+      position: 'absolute',
+      top: 78,
+      width: LOGIN_CONTROL.width,
+    },
+    identifierKindOption: {
+      alignItems: 'center',
+      borderRadius: radius.pill,
+      flex: 1,
+      justifyContent: 'center',
+      minHeight: 60,
+    },
+    identifierKindOptionActive: {
+      backgroundColor: colors.login.panelBg,
+      borderColor: colors.login.controlBorderActive,
+      borderWidth: StyleSheet.hairlineWidth,
+    },
+    identifierKindOptionPressed: { opacity: 0.78 },
+    identifierKindLabel: {
+      color: colors.login.secondaryText,
+      fontSize: typeScale.title,
+      fontWeight: fontWeight.regular,
+      lineHeight: lineHeight.title,
+    },
+    identifierKindLabelActive: {
+      color: colors.login.controlText,
+      fontWeight: fontWeight.semibold,
+    },
     closeButton: {
       alignItems: 'center',
       backgroundColor: colors.surfaceElevated,

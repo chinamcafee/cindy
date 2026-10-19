@@ -7468,6 +7468,8 @@
   "login": {
     "title": "Welcome to Cindy",
     "subtitle": "Choose a secure way to sign in",
+    "usePhone": "Phone number",
+    "useEmail": "Email address",
     "savedLoginPreserved": "Recovery keeps your saved sign-in details",
     "phonePlaceholder": "Enter your phone number",
     "emailPlaceholder": "Enter your email",

@@ -44,6 +44,7 @@ import {
   LoginConsentDialog,
   LoginConsentRow,
   LoginErrorText,
+  LoginIdentifierKindToggle,
   LoginInput,
   LoginLoadingRing,
   LoginMethodRow,
@@ -394,9 +395,9 @@ export function LoginPage({
   const regionPillKey = shouldLabelRegion(CURRENT_CINDY_REGION)
     ? REGION_PILL_KEY[CURRENT_CINDY_REGION]
     : undefined;
-  // identifier 形态 = 构建区域确定性推导(用户拍板 2026-07-21:手机/邮箱分区互斥,
-  // 双 tab 切换移除);providers 仅兜底区域首选方式未下发的场景。
-  const identifierKind: VerificationKind = useMemo(
+  // identifier 形态默认按构建区域推导；个人部署同时开启邮箱/手机号时允许用户
+  // 在登录页显式切换（二者都绑定到同一账号）。
+  const defaultIdentifierKind: VerificationKind = useMemo(
     () =>
       loginState?.step === 'identifier'
         ? resolveIdentifierMethod(CURRENT_CINDY_REGION, loginState.providers)
@@ -405,6 +406,16 @@ export function LoginPage({
           : 'phone',
     [loginState, isGlobalBuild],
   );
+  const [identifierKindOverride, setIdentifierKindOverride] = useState<VerificationKind | null>(null);
+  const identifierKind: VerificationKind =
+    identifierKindOverride &&
+    loginState?.step === 'identifier' &&
+    loginState.providers[identifierKindOverride]
+      ? identifierKindOverride
+      : defaultIdentifierKind;
+  useEffect(() => {
+    if (loginState?.step !== 'identifier') setIdentifierKindOverride(null);
+  }, [loginState?.step]);
   const [identifier, setIdentifier] = useState('');
   // identifier 本地格式校验错误(设计稿 347:1727:非法邮箱/手机号 → 输入框红边 +
   // 底部红字「请输入正确邮箱」/「请输入正确手机号」)。提交前本地拦截、不发 discover
@@ -750,6 +761,20 @@ export function LoginPage({
               subtitle={t('login.subtitle')}
               regionPill={regionPillKey ? t(regionPillKey) : undefined}
             />
+            {providers.email && providers.phone ? (
+              <LoginIdentifierKindToggle
+                value={identifierKind}
+                disabled={isLoading}
+                phoneLabel={t('login.usePhone')}
+                emailLabel={t('login.useEmail')}
+                onChange={(kind) => {
+                  setIdentifierKindOverride(kind);
+                  setIdentifier('');
+                  setIdentifierFormatError(null);
+                  clearError();
+                }}
+              />
+            ) : null}
             <LoginInput
               autoFocus
               disabled={isLoading}

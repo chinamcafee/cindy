@@ -7436,6 +7436,8 @@
   "login": {
     "title": "Cindy へようこそ",
     "subtitle": "安全なログイン方法を選択してください",
+    "usePhone": "電話番号",
+    "useEmail": "メールアドレス",
     "savedLoginPreserved": "復旧操作で保存済みのログイン情報は削除しません",
     "phonePlaceholder": "電話番号を入力",
     "emailPlaceholder": "メールアドレスを入力",

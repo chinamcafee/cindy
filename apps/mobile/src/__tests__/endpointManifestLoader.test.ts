@@ -32,20 +32,17 @@ afterEach(() => {
 });
 
 describe('mobile endpoint startup and recovery', () => {
-  it.each(['cn', 'global'] as const)('uses the compiled GitHub backup for %s when hotfix fails', async (region) => {
-    const fetchMock = vi.fn(async (url: string) => {
-      if (!url.startsWith('https://raw.githubusercontent.com/')) throw new TypeError('hotfix unavailable');
-      return { ok: true, text: async () => region === 'cn' ? cnText : globalText };
+  it.each(['cn', 'global'] as const)('does not request an official mirror for %s when hotfix fails', async (region) => {
+    const fetchMock = vi.fn(async (_url: string) => {
+      throw new TypeError('hotfix unavailable');
     });
     vi.stubGlobal('fetch', fetchMock);
     const { resolveMobileEndpointManifest } = await import('@/config/endpointManifestLoader');
     const result = await resolveMobileEndpointManifest(region, region === 'cn' ? cnBase : globalBase);
-    expect(result).toMatchObject({ ok: true, source: 'mirror', text: region === 'cn' ? cnText : globalText });
-    const filename = region === 'cn' ? 'endpoint.json' : 'endpoint.global.json';
-    expect(fetchMock.mock.calls[1][0]).toContain(
-      `https://raw.githubusercontent.com/makecindy/cindy/main/config/${filename}?`,
-    );
-    expect(storage.size).toBe(1);
+    expect(result).toMatchObject({ ok: true, source: 'bundled', text: region === 'cn' ? cnText : globalText });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toContain(region === 'cn' ? cnBase : globalBase);
+    expect(storage.size).toBe(0);
   });
 
   it('persists both regions, survives module reload, and restores CN endpoints without changing the Global update identity', async () => {
@@ -110,7 +107,7 @@ describe('mobile endpoint startup and recovery', () => {
     const result = resolveMobileEndpointManifest('cn', cnBase);
     await vi.advanceTimersByTimeAsync(5000);
     expect(await result).toMatchObject({ ok: true, source: 'bundled' });
-    expect(signals).toHaveLength(2);
+    expect(signals).toHaveLength(1);
     expect(signals.every((signal) => signal.aborted)).toBe(true);
   });
 });
